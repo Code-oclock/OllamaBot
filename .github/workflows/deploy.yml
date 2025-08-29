@@ -22,7 +22,7 @@ jobs:
 
       - name: Build and push image
         run: |
-          IMAGE=ghcr.io/${{ github.repository }}:latest
+          IMAGE="ghcr.io/${{ github.repository }}:latest"
           IMAGE_LC=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
           docker build -t "$IMAGE_LC" .
           docker push "$IMAGE_LC"
@@ -31,27 +31,24 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Prepare SSH
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Add known_hosts
-        run: |
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+      - name: Add server to known_hosts
+        run: ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Copy docker-compose.yml to server (one time or when changed)
-        run: |
-          scp ./docker-compose.yml ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/mybot/docker-compose.yml
+      - name: Copy docker-compose.yml to server
+        run: scp ./docker-compose.yml ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/mybot/docker-compose.yml
 
-      - name: Pull & restart
+      - name: Pull image & restart service
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} '
-            IMAGE=ghcr.io/${{ github.repository }}:latest &&
-            docker pull "$IMAGE" &&
-            systemctl --user daemon-reload >/dev/null 2>&1 || true &&
-            sudo systemctl restart mybot.service || {
-              # first-time run
-              sudo systemctl start mybot.service
-            }
+            IMAGE="ghcr.io/${{ github.repository }}:latest";
+            IMAGE_LC=$(echo "$IMAGE" | tr "[:upper:]" "[:lower:]");
+            docker pull "$IMAGE_LC" &&
+            sudo systemctl restart mybot.service || sudo systemctl start mybot.service
           '
