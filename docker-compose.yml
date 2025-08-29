@@ -4,5 +4,4 @@ services:
     restart: unless-stopped
     env_file:
       - /opt/mybot/.env
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    network_mode: "host"  
