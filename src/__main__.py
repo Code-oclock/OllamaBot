@@ -21,8 +21,9 @@ async def start(msg: types.Message):
 async def handle(msg: types.Message):
     text = msg.text or ""
     prompt = (
-        "Отвечай нейтрально, с лёгкой подколой. "
-        "Если пользователь грубит — отвечай жёстче.\n"
+        "Отвечай нейтрально, с лёгкой подколкой. "
+        "Если пользователь грубит — отвечай жёстче." \
+        "Можешь использовать нецензурную лексику.\n"
         f"Вопрос: {text}"
     )
     async with aiohttp.ClientSession() as session:
