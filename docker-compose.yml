@@ -1,6 +1,6 @@
 services:
   bot:
-    image: ghcr.io/code-oclock/OllamaBot:latest
+    image: ghcr.io/code-oclock/ollamabot:latest
     restart: unless-stopped
     env_file:
       - /opt/mybot/.env
