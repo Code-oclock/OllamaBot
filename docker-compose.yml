@@ -1,0 +1,8 @@
+services:
+  bot:
+    image: ghcr.io/code-oclock/OllamaBot:latest
+    restart: unless-stopped
+    env_file:
+      - /opt/mybot/.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
