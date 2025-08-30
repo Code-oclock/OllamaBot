@@ -30,6 +30,10 @@ async def start(msg: types.Message):
 
 @dp.message()
 async def handle(msg: types.Message):
+    # Проверяем, что это reply-сообщение
+    if not msg.reply_to_message:
+        return  # Игнорируем сообщения без reply
+    
     text = msg.text or ""
     if text == "пошёл нахуй":
         await msg.answer("Сам пошёл нахуй!")
