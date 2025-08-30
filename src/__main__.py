@@ -23,7 +23,7 @@ async def handle(msg: types.Message):
     if text == "пошёл нахуй":
         await msg.answer("Сам пошёл нахуй!")
         return
-    if len(text) > 25:
+    if len(text) > 1000:
         await msg.answer("Ты еблан, пиши короче!")
         return
     
