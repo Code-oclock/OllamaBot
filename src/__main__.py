@@ -4,7 +4,8 @@ import asyncio
 import aiohttp
 import time
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
+from aiogram.types import ChatMemberUpdated, ChatMember
 
 # Читаем переменные окружения, которые придут из .env (на сервере)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -27,6 +28,47 @@ dp = Dispatcher()
 @dp.message(CommandStart())
 async def start(msg: types.Message):
     await msg.answer("Привет! Я на месте. Спроси меня что-нибудь.")
+
+@dp.message(Command("help"))
+async def help_command(msg: types.Message):
+    help_text = """
+🤖 **Как использовать бота:**
+
+1. **Добавьте меня в группу** - я автоматически поприветствую всех
+2. **Отправьте сообщение** в ответ на любое сообщение в группе
+3. **Используйте команды:**
+   - `/start` - приветствие
+   - `/help` - эта справка
+   - `/ping` - проверить, что бот работает
+
+💡 **Совет:** Просто ответьте (reply) на любое сообщение в группе, и я отвечу!
+    """
+    await msg.answer(help_text, parse_mode="Markdown")
+
+@dp.message(Command("ping"))
+async def ping_command(msg: types.Message):
+    await msg.answer("🏓 Понг! Бот работает!")
+
+@dp.chat_member()
+async def on_chat_member_update(event: ChatMemberUpdated):
+    """Обрабатываем добавление/удаление бота из группы"""
+    if event.new_chat_member.user.id == bot.id:
+        if event.new_chat_member.status == ChatMember.MEMBER:
+            # Бота добавили в группу
+            welcome_text = """
+🎉 **Привет всем! Я новый участник группы!**
+
+🤖 **Как со мной общаться:**
+• Просто ответьте (reply) на любое сообщение в группе
+• Используйте команду `/help` для подробной справки
+• Команда `/ping` чтобы проверить, что я работаю
+
+Готов отвечать на ваши вопросы! 🚀
+            """
+            await event.chat.send_message(welcome_text, parse_mode="Markdown")
+        elif event.new_chat_member.status == ChatMember.LEFT:
+            # Бота удалили из группы
+            await event.chat.send_message("👋 Пока всем! Было приятно пообщаться!")
 
 @dp.message()
 async def handle(msg: types.Message):
