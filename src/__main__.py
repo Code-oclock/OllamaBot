@@ -20,8 +20,15 @@ async def start(msg: types.Message):
 @dp.message()
 async def handle(msg: types.Message):
     text = msg.text or ""
+    if text == "пошёл нахуй":
+        await msg.answer("Сам пошёл нахуй!")
+        return
+    if len(text) > 25:
+        await msg.answer("Ты еблан, пиши короче!")
+        return
+    
     prompt = (
-        "Отвечай нейтрально, с лёгкой подколкой. "
+        "Отвечай нейтрально, с подколкой. "
         "Если пользователь грубит — отвечай жёстче." \
         "Можешь использовать нецензурную лексику.\n"
         f"Вопрос: {text}"
@@ -30,7 +37,8 @@ async def handle(msg: types.Message):
         async with session.post(f"{OLLAMA}/api/generate", json={
             "model": MODEL,
             "prompt": prompt,
-            "stream": False
+            "stream": False,
+            "temperature": 0.7,
         }) as r:
             data = await r.json()
             reply = data.get("response", "…")
