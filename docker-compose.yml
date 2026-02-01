@@ -5,3 +5,5 @@ services:
     env_file:
       - /opt/mybot/.env
     network_mode: "host"  
+    volumes:
+      - /opt/mybot/data:/app/data
