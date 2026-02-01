@@ -17,7 +17,10 @@ from .memory_store import MemoryStore, naive_summarizer
 # Читаем переменные окружения, которые придут из .env (на сервере)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 OLLAMA = os.getenv("OLLAMA_ENDPOINT", "http://host.docker.internal:11434")
-MODEL = os.getenv("MODEL_NAME", "qwen2.5:7b-instruct-q4_K_M")
+MODEL = os.getenv(
+    "MODEL_NAME",
+    "huggingface.co/bartowski/Lexi-Llama-3-8B-Uncensored-GGUF:Q4_K_M",
+)
 
 # Системный промпт, задается один раз при запуске
 SYSTEM_PROMPT = os.getenv(
