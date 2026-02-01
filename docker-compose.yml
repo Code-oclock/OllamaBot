@@ -4,6 +4,6 @@ services:
     restart: unless-stopped
     env_file:
       - /opt/mybot/.env
-    network_mode: "host"  
+    network_mode: "host"
     volumes:
       - /opt/mybot/data:/app/data
