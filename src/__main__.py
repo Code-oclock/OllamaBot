@@ -44,6 +44,8 @@ store = MemoryStore(DB_PATH)
 class SessionState:
     last_humor_ts: float | None = None
     last_summary_day: date | None = None
+    last_joke_day: date | None = None
+    jokes_today: int = 0
 
 
 def _get_state(chat_id: str, state_by_chat: dict) -> SessionState:
@@ -60,6 +62,10 @@ def _maybe_summarize(chat_id: str, state: SessionState) -> None:
         return
     store.summarize_day(chat_id, day, naive_summarizer)
     state.last_summary_day = day
+
+
+def _is_question(text: str) -> bool:
+    return "?" in text
 
 
 bot = Bot(TELEGRAM_TOKEN)
@@ -90,6 +96,98 @@ async def help_command(msg: types.Message):
 async def ping_command(msg: types.Message):
     await msg.answer("🏓 Понг! Бот работает!")
 
+@dp.message()
+async def store_any_message(msg: types.Message):
+    if msg.from_user and msg.from_user.id == bot.id:
+        return
+    if msg.reply_to_message:
+        return
+    text = msg.text or msg.caption or ""
+    if not text.strip():
+        return
+    if text.strip().startswith("/"):
+        return
+    chat_id = str(msg.chat.id)
+    msg_id = str(msg.message_id)
+    state = _get_state(chat_id, state_by_chat)
+    _maybe_summarize(chat_id, state)
+    store.add_message(chat_id, msg_id, "user", text)
+
+    ambient_enabled = os.getenv("AMBIENT_JOKE_ENABLED", "true").lower() == "true"
+    if not ambient_enabled:
+        return
+    if not _is_question(text):
+        return
+
+    today = date.today()
+    if state.last_joke_day != today:
+        state.last_joke_day = today
+        state.jokes_today = 0
+
+    max_per_day = int(os.getenv("AMBIENT_JOKE_MAX_PER_DAY", "4"))
+    if state.jokes_today >= max_per_day:
+        return
+
+    humor_cfg = HumorConfig(
+        humor_rate=float(os.getenv("AMBIENT_JOKE_RATE", "0.04")),
+        min_gap_seconds=int(os.getenv("AMBIENT_JOKE_MIN_GAP_SECONDS", "1800")),
+        min_length=int(os.getenv("HUMOR_MIN_LENGTH", "6")),
+        max_length=int(os.getenv("HUMOR_MAX_LENGTH", "600")),
+        block_keywords=tuple(
+            k.strip().lower()
+            for k in os.getenv("HUMOR_BLOCK_KEYWORDS", "").split(",")
+            if k.strip()
+        ),
+    )
+    if not should_add_humor(text, state.last_humor_ts, humor_cfg):
+        return
+
+    ctx_cfg = ContextConfig(
+        recent_limit=int(os.getenv("RECENT_LIMIT", "40")),
+        summary_days=int(os.getenv("SUMMARY_DAYS", "7")),
+        max_summary_chars=int(os.getenv("SUMMARY_MAX_CHARS", "2000")),
+        system_prompt=SYSTEM_PROMPT,
+    )
+    ctx = build_context(chat_id, text, store, ctx_cfg)
+    ctx["messages"].append(
+        {
+            "role": "system",
+            "content": (
+                "Если уместно, вкинь одну короткую шутку/подкол в чат. "
+                "Если не к месту — ответь максимально кратко или промолчи."
+            ),
+        }
+    )
+
+    async with aiohttp.ClientSession() as session:
+        if USE_CHAT_API:
+            async with session.post(f"{OLLAMA}/api/chat", json={
+                "model": MODEL,
+                "messages": ctx["messages"],
+                "stream": False,
+                "temperature": 0.7,
+            }) as r:
+                data = await r.json()
+                reply = data.get("message", {}).get("content", "").strip()
+        else:
+            async with session.post(f"{OLLAMA}/api/generate", json={
+                "model": MODEL,
+                "prompt": ctx["messages"][-1]["content"],
+                "system": ctx["messages"][0]["content"],
+                "stream": False,
+                "temperature": 0.7,
+            }) as r:
+                data = await r.json()
+                reply = data.get("response", "").strip()
+
+    if not reply:
+        return
+
+    state.last_humor_ts = time.time()
+    state.jokes_today += 1
+    store.add_message(chat_id, msg_id + ":assistant", "assistant", reply)
+    await msg.reply(reply)
+
 @dp.chat_member()
 async def on_chat_member_update(event: ChatMemberUpdated):
     """Обрабатываем добавление/удаление бота из группы"""
@@ -116,6 +214,8 @@ async def handle(msg: types.Message):
     # Проверяем, что это reply-сообщение
     if not msg.reply_to_message:
         return  # Игнорируем сообщения без reply
+    if not msg.reply_to_message.from_user or msg.reply_to_message.from_user.id != bot.id:
+        return  # Отвечаем только на реплаи боту
     
     text = msg.text or msg.caption or ""
     if not text.strip():
