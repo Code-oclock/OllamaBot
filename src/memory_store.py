@@ -25,6 +25,8 @@ class MemoryStore:
 
     def _init_db(self) -> None:
         with self._connect() as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS messages (
@@ -52,6 +54,12 @@ class MemoryStore:
                 """
                 CREATE INDEX IF NOT EXISTS idx_messages_chat_ts
                 ON messages(chat_id, ts)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_summaries_chat_day
+                ON summaries(chat_id, day)
                 """
             )
 
@@ -127,6 +135,38 @@ class MemoryStore:
                 (chat_id, cutoff),
             ).fetchall()
         return [(r["day"], r["summary"]) for r in rows]
+
+    def prune_old_messages(self, days_to_keep: int) -> int:
+        if days_to_keep <= 0:
+            return 0
+        cutoff = (datetime.utcnow() - timedelta(days=days_to_keep)).timestamp()
+        with self._connect() as conn:
+            cur = conn.execute(
+                """
+                DELETE FROM messages
+                WHERE ts < ?
+                """,
+                (cutoff,),
+            )
+            return cur.rowcount
+
+    def prune_old_summaries(self, days_to_keep: int) -> int:
+        if days_to_keep <= 0:
+            return 0
+        cutoff = (date.today() - timedelta(days=days_to_keep)).isoformat()
+        with self._connect() as conn:
+            cur = conn.execute(
+                """
+                DELETE FROM summaries
+                WHERE day < ?
+                """,
+                (cutoff,),
+            )
+            return cur.rowcount
+
+    def vacuum(self) -> None:
+        with self._connect() as conn:
+            conn.execute("VACUUM")
 
     def summarize_day(
         self,

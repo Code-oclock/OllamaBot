@@ -47,6 +47,8 @@ class SessionState:
     last_summary_day: date | None = None
     last_joke_day: date | None = None
     jokes_today: int = 0
+    last_maintenance_day: date | None = None
+    last_vacuum_day: date | None = None
 
 
 def _get_state(chat_id: str, state_by_chat: dict) -> SessionState:
@@ -63,6 +65,24 @@ def _maybe_summarize(chat_id: str, state: SessionState) -> None:
         return
     store.summarize_day(chat_id, day, naive_summarizer)
     state.last_summary_day = day
+
+
+def _maybe_maintenance(chat_id: str, state: SessionState) -> None:
+    today = date.today()
+    if state.last_maintenance_day != today:
+        state.last_maintenance_day = today
+        keep_msgs_days = int(os.getenv("MEMORY_KEEP_DAYS", "14"))
+        keep_sum_days = int(os.getenv("MEMORY_SUMMARY_KEEP_DAYS", "60"))
+        store.prune_old_messages(keep_msgs_days)
+        store.prune_old_summaries(keep_sum_days)
+
+    vacuum_weekday = int(os.getenv("MEMORY_VACUUM_WEEKDAY", "6"))
+    if today.weekday() != vacuum_weekday:
+        return
+    if state.last_vacuum_day == today:
+        return
+    state.last_vacuum_day = today
+    store.vacuum()
 
 
 def _is_question(text: str) -> bool:
@@ -118,6 +138,7 @@ async def store_any_message(msg: types.Message):
     msg_id = str(msg.message_id)
     state = _get_state(chat_id, state_by_chat)
     _maybe_summarize(chat_id, state)
+    _maybe_maintenance(chat_id, state)
     store.add_message(chat_id, msg_id, "user", text)
 
     ambient_enabled = os.getenv("AMBIENT_JOKE_ENABLED", "true").lower() == "true"
@@ -238,6 +259,7 @@ async def handle(msg: types.Message):
     msg_id = str(msg.message_id)
     state = _get_state(chat_id, state_by_chat)
     _maybe_summarize(chat_id, state)
+    _maybe_maintenance(chat_id, state)
 
     ctx_cfg = ContextConfig(
         recent_limit=int(os.getenv("RECENT_LIMIT", "40")),
@@ -297,6 +319,7 @@ async def handle(msg: types.Message):
     print(f"Время ответа: {response_time:.2f} сек")
     
     store.add_message(chat_id, msg_id + ":assistant", "assistant", reply)
+    _maybe_maintenance(chat_id, state)
     await msg.answer(reply)
 
 async def main() -> None:
