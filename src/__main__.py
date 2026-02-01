@@ -71,6 +71,7 @@ def _is_question(text: str) -> bool:
 bot = Bot(TELEGRAM_TOKEN)
 dp = Dispatcher()
 state_by_chat: dict[str, SessionState] = {}
+BOT_ID: int | None = None
 
 @dp.message(CommandStart())
 async def start(msg: types.Message):
@@ -98,9 +99,7 @@ async def ping_command(msg: types.Message):
 
 @dp.message()
 async def store_any_message(msg: types.Message):
-    if msg.from_user and msg.from_user.id == bot.id:
-        return
-    if msg.reply_to_message:
+    if msg.from_user and BOT_ID and msg.from_user.id == BOT_ID:
         return
     text = msg.text or msg.caption or ""
     if not text.strip():
@@ -191,7 +190,7 @@ async def store_any_message(msg: types.Message):
 @dp.chat_member()
 async def on_chat_member_update(event: ChatMemberUpdated):
     """Обрабатываем добавление/удаление бота из группы"""
-    if event.new_chat_member.user.id == bot.id:
+    if BOT_ID and event.new_chat_member.user.id == BOT_ID:
         if event.new_chat_member.status == ChatMember.MEMBER:
             # Бота добавили в группу
             welcome_text = """
@@ -214,7 +213,7 @@ async def handle(msg: types.Message):
     # Проверяем, что это reply-сообщение
     if not msg.reply_to_message:
         return  # Игнорируем сообщения без reply
-    if not msg.reply_to_message.from_user or msg.reply_to_message.from_user.id != bot.id:
+    if not BOT_ID or not msg.reply_to_message.from_user or msg.reply_to_message.from_user.id != BOT_ID:
         return  # Отвечаем только на реплаи боту
     
     text = msg.text or msg.caption or ""
@@ -292,5 +291,12 @@ async def handle(msg: types.Message):
     store.add_message(chat_id, msg_id + ":assistant", "assistant", reply)
     await msg.answer(reply)
 
+async def main() -> None:
+    global BOT_ID
+    me = await bot.get_me()
+    BOT_ID = me.id
+    await dp.start_polling(bot)
+
+
 if __name__ == "__main__":
-    asyncio.run(dp.start_polling(bot))
+    asyncio.run(main())
