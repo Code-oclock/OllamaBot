@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass
 from datetime import date, timedelta
 from aiogram import Bot, Dispatcher, types
+from aiogram.exceptions import SkipHandler
 from aiogram.filters import CommandStart, Command
 from aiogram.types import ChatMemberUpdated, ChatMember
 
@@ -101,6 +102,13 @@ async def ping_command(msg: types.Message):
 async def store_any_message(msg: types.Message):
     if msg.from_user and BOT_ID and msg.from_user.id == BOT_ID:
         return
+    if (
+        BOT_ID
+        and msg.reply_to_message
+        and msg.reply_to_message.from_user
+        and msg.reply_to_message.from_user.id == BOT_ID
+    ):
+        raise SkipHandler
     text = msg.text or msg.caption or ""
     if not text.strip():
         return
