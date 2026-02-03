@@ -208,3 +208,52 @@ def naive_summarizer(msgs: Iterable[MessageRow]) -> str:
         lines.append(f"{prefix}: {m.text[:120]}")
     return "\n".join(lines)
 
+
+def compact_summarizer(msgs: Iterable[MessageRow], max_facts: int = 8) -> str:
+    """
+    Compact summary to avoid leaking raw chat lines into the prompt.
+    Output format is stable and avoids U:/A: prefixes.
+    """
+    messages = list(msgs)
+    if not messages:
+        return ""
+
+    # Heuristic: keep only user messages and extract short statements
+    facts: list[str] = []
+    topics: list[str] = []
+    last_user_lines: list[str] = []
+
+    for m in messages:
+        if m.role != "user":
+            continue
+        text = " ".join(m.text.strip().split())
+        if not text:
+            continue
+        last_user_lines.append(text)
+        # collect topic tokens
+        for t in text.split():
+            t = t.strip(".,:;!?()[]{}\"'").lower()
+            if 4 <= len(t) <= 16:
+                topics.append(t)
+        # extract short "fact-like" lines
+        if 12 <= len(text) <= 140 and text[0].isupper():
+            facts.append(text)
+
+    last_user_lines = last_user_lines[-6:]
+    topics = sorted(set(topics))[:10]
+    facts = facts[:max_facts]
+
+    lines: list[str] = []
+    if topics:
+        lines.append("topics: " + ", ".join(topics))
+    if facts:
+        lines.append("facts:")
+        for f in facts:
+            lines.append(f"- {f}")
+    if last_user_lines:
+        lines.append("recent_user_lines:")
+        for l in last_user_lines:
+            lines.append(f"- {l}")
+
+    return "\n".join(lines)
+
