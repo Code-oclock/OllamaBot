@@ -12,7 +12,7 @@ from aiogram.types import ChatMemberUpdated, ChatMember
 
 from .context_pipeline import build_context, ContextConfig
 from .humor_gate import should_add_humor, HumorConfig
-from .memory_store import MemoryStore, naive_summarizer
+from .memory_store import MemoryStore, compact_summarizer
 
 # Читаем переменные окружения, которые придут из .env (на сервере)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -67,7 +67,7 @@ def _maybe_summarize(chat_id: str, state: SessionState) -> None:
     day = date.today() - timedelta(days=1)
     if state.last_summary_day == day:
         return
-    store.summarize_day(chat_id, day, naive_summarizer)
+    store.summarize_day(chat_id, day, compact_summarizer)
     state.last_summary_day = day
 
 
